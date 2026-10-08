@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>AI Radio Bridge · Connecting</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f2f2f3; --text: #1d1f20; --muted: #5d5d60; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #121518; --text: #e6e8ea; --muted: #b7b7ba; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 440px; padding: 24px 16px; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Connecting your radio bridge …</h1>
+  <p id="msg">One moment, you are sent back to the bridge on your network.</p>
+</main>
+<script>
+// Salesforce only returns to https addresses; the bridge is http on the local network. This page sends the browser on
+// to the bridge address named in "state", and only to a private network address with the bridge's callback path.
+// It stores nothing; the code is useless without the PKCE verifier that never leaves the bridge.
+(function () {
+  var q = new URLSearchParams(location.search), msg = document.getElementById("msg");
+  history.replaceState(null, "", location.pathname);  // the code does not stay in this page's history
+  function fail(text) { msg.textContent = text; }
+  var target;
+  try {
+    var part = (q.get("state") || "").split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    target = new URL(JSON.parse(atob(part + "===".slice((part.length + 3) % 4))).r);
+  } catch (e) { return fail("This link does not come from a radio bridge."); }
+  var h = target.hostname.replace(/^\[|\]$/g, "");
+  var local = /^(10|127)\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+              h === "localhost" || /\.local$/i.test(h) || /^(fd|fc|fe80)/i.test(h);
+  if (!/^https?:$/.test(target.protocol) || !local || !/^\/oauth\/[a-z_]+\/callback$/.test(target.pathname))
+    return fail("Refused: the bridge address must be on your local network.");
+  var out = new URLSearchParams();
+  ["code", "state", "error", "error_description"].forEach(function (k) { if (q.has(k)) out.set(k, q.get(k)); });
+  location.replace(target.origin + target.pathname + "?" + out.toString());
+})();
+</script>
+</body>
+</html>
